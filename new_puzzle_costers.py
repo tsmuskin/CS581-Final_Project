@@ -1,10 +1,11 @@
 import svgwrite
 from shapely.geometry import Polygon
 from shapely.affinity import rotate, translate
+import random
 
 
 
-def create_rectangle_ring(cx, cy, outer_w, outer_h, inner_w, inner_h, angle=0):
+def create_rectangle_ring(cx, cy, outer_w, outer_h, inner_w, inner_h):
     """
     Create a rectangular ring (frame) by subtracting an inner rectangle from an outer rectangle.
 
@@ -15,6 +16,9 @@ def create_rectangle_ring(cx, cy, outer_w, outer_h, inner_w, inner_h, angle=0):
       angle:            Rotation angle around the center.
 
     """
+#     angle = random.uniform(0, 360)
+    allowed_angles = [0, 45, 90]
+    angle = random.choice(allowed_angles)
 
     outer_rect = Polygon([
         (0, 0),
@@ -78,14 +82,14 @@ def shapely_to_svg_path(geom):
 def generate_complex_rings_svg(ring_specs, filename="complex_rings.svg", margin=50):
     """
     Parameters:
-      ring_specs: A list of tuples, each as (cx, cy, outer_w, outer_h, inner_w, inner_h, angle),
+      ring_specs: A list of tuples, each as (cx, cy, outer_w, outer_h, inner_w, inner_h),
                   representing the original parameters for each ring.
       margin:     Margin around the content.
     """
     rings = []
     for spec in ring_specs:
-        cx, cy, ow, oh, iw, ih, angle = spec
-        ring = create_rectangle_ring(cx, cy, ow, oh, iw, ih, angle)
+        cx, cy, ow, oh, iw, ih = spec
+        ring = create_rectangle_ring(cx, cy, ow, oh, iw, ih)
         rings.append(ring)
 
 
@@ -138,8 +142,8 @@ def generate_individual_rings_svg(ring_specs, filename="individual_rings.svg", m
     n = len(ring_specs)
     rings_original = []
     for spec in ring_specs:
-        cx, cy, ow, oh, iw, ih, angle = spec
-        ring = create_rectangle_ring(cx, cy, ow, oh, iw, ih, angle)
+        cx, cy, ow, oh, iw, ih = spec
+        ring = create_rectangle_ring(cx, cy, ow, oh, iw, ih)
         rings_original.append(ring)
     red_regions_original = []
     for i in range(n):
@@ -160,8 +164,8 @@ def generate_individual_rings_svg(ring_specs, filename="individual_rings.svg", m
     normalized_rings = []
     normalized_reds = []
     for spec, red_orig in zip(ring_specs, red_regions_original):
-        cx, cy, ow, oh, iw, ih, angle = spec
-        norm_ring = create_rectangle_ring(ow / 2, oh / 2, ow, oh, iw, ih, angle)
+        cx, cy, ow, oh, iw, ih = spec
+        norm_ring = create_rectangle_ring(ow / 2, oh / 2, ow, oh, iw, ih)
         normalized_rings.append(norm_ring)
         dx0 = (ow / 2) - cx
         dy0 = (oh / 2) - cy
@@ -173,7 +177,7 @@ def generate_individual_rings_svg(ring_specs, filename="individual_rings.svg", m
     x_cursor = margin
     overall_max_height = 0
     for i, spec in enumerate(ring_specs):
-        _, _, ow, oh, _, _, _ = spec
+        _, _, ow, oh, _, _ = spec
         ring = normalized_rings[i]
         minx, miny, maxx, maxy = ring.bounds
         w = maxx - minx
@@ -206,10 +210,23 @@ def generate_individual_rings_svg(ring_specs, filename="individual_rings.svg", m
 
 
 if __name__ == "__main__":
-    specs = [
-        (300, 300, 200, 200, 160, 160, 0),
-        (300, 300, 200, 200, 160, 160, 45),
-    ]
+
+    num_coasters = int(input("Enter number of coasters: "))
+
+    DPI = 96 # convert pixels to inches
+    outer_w = outer_h = 2.5 * DPI  # 240
+    inner_w = inner_h = 2.0 * DPI  # 192
+
+
+#     specs = [
+#         (300, 300, outer_w, outer_h, inner_w, inner_h),
+#         (300, 300, outer_w, outer_h, inner_w, inner_h),
+#     ]
+    specs = []
+    for i in range(num_coasters):
+        center_x, center_y = TODO # function call for finding next coaster center points
+        specs.append((center_x, center_y, outer_w, outer_h, inner_w, inner_h))
+
 
     generate_complex_rings_svg(specs, filename="complex_rings.svg", margin=50)
 
