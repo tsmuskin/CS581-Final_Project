@@ -328,79 +328,147 @@ def generate_individual_rings_svg(ring_specs, filename="individual_rings.svg", m
 # Main Program: Generate two SVG files simultaneously and randomly generate coaster centers and angles
 # -----------------------------------------------
 
-def calculate_coaster_centers(num_coasters, outer_w, outer_h, margin, max_retries=50):
+# def calculate_coaster_centers(num_coasters, rotation_flag, outer_w, outer_h, margin, max_retries=1000):
+#     """
+#     Parameters:
+#       num_coasters: Number of coasters.
+#       outer_w, outer_h: Outer dimensions of each coaster.
+#       margin: Grid margin (in pixels).
+#       max_retries: Maximum number of retries for each candidate.
+#
+#     Returns:
+#       A list of tuples, each tuple being.
+#     """
+#     centers = []
+#     angle_step = 15 if rotation_flag == "y" else 0
+#     cols = math.ceil(math.sqrt(num_coasters))
+#     rows = math.ceil(num_coasters / cols)
+#     cell_w = outer_w * 0.9
+#     cell_h = outer_h * 0.9
+#     max_offset_x = cell_w * 0.5
+#     max_offset_y = cell_h * 0.5
+#     start_x = margin
+#     start_y = margin
+#     allowed_angles = [0, 90, 180, 270]
+#     for r in range(rows):
+#         for c in range(cols):
+#             if len(centers) >= num_coasters:
+#                 break
+#             cell_x = start_x + c * cell_w
+#             cell_y = start_y + r * cell_h
+#             ideal_cx = cell_x + cell_w / 2
+#             ideal_cy = cell_y + cell_h / 2
+#             valid = False
+#             retries = 0
+#             while not valid and retries < max_retries:
+#                 cx = margin + c * cell_w + cell_w / 2
+#                 cy = margin + r * cell_h + cell_h / 2
+#                 angle = 90 * ((r + c) % 4)
+# #                 offset_x = random.uniform(-max_offset_x, max_offset_x)
+# #                 offset_y = random.uniform(-max_offset_y, max_offset_y)
+# #
+# # #                 offset_x = math.sin((r + c) * 0.5) * (outer_w * 0.2)
+# # #                 offset_y = math.cos((r - c) * 0.5) * (outer_h * 0.2)
+# #
+# #
+# #                 cx = ideal_cx + offset_x
+# #                 cy = ideal_cy + offset_y
+# # #                 for i in range(num_coasters):
+# # #                     angle = random.choice(allowed_angles) + angle_step * i
+# # #                     print(f"Coaster {i}: angle = {angle}")
+# #
+# #                 if rotation_flag == "y":
+# #                     angle = 15 * ((r + c) % 2)  # or whatever symmetry rule you’re using
+# # #                     angle += random.uniform(-5, 5)  # add jitter
+# #                 else:
+# #                     angle = 0
+#
+#                 candidate_spec = (cx, cy, angle)
+#                 if len(centers) == 0:
+#                     valid = True
+#                 else:
+#                     # Generate candidate coaster
+#                     candidate_ring = create_rectangle_ring(cx, cy, outer_w, outer_h, inner_w, inner_h, angle)
+#                     # First check the existing constraints
+#                     if check_coaster_constraints(candidate_spec, centers, outer_w, outer_h, inner_w, inner_h):
+#                         # Additional check: count the number of overlaps between the candidate coaster and the existing coasters
+#                         overlap_count = 0
+#                         for spec_exist in centers:
+#                             ox, oy, oangle = spec_exist
+#                             other_ring = create_rectangle_ring(ox, oy, outer_w, outer_h, inner_w, inner_h, oangle)
+#                             if candidate_ring.intersection(other_ring).area > 1.0:  # Adjust threshold as needed
+#                                 overlap_count += 1
+#                             if overlap_count >= 2:
+#                                 break
+#                         if overlap_count < 2:
+#                             valid = True
+#                 retries += 1
+#
+#             if valid:
+#                 centers.append(candidate_spec)
+#                 coaster_grid[(r, c)] = (cx, cy, angle)
+#             else:
+#                 centers.append((ideal_cx, ideal_cy, random.choice(allowed_angles)))
+#                 coaster_grid[(r, c)] = (cx, cy, angle)
+#     return centers
+
+
+def calculate_coaster_centers(num_coasters, rotation_flag, outer_w, outer_h, margin, max_retries=1000):
     """
+    Place coasters so they overlap intentionally at corners (not more than 2 per overlap).
+
     Parameters:
-      num_coasters: Number of coasters.
-      outer_w, outer_h: Outer dimensions of each coaster.
-      margin: Grid margin (in pixels).
-      max_retries: Maximum number of retries for each candidate.
+        num_coasters: total number of coasters
+        rotation_flag: 'y' to rotate each by 45 deg
+        outer_w, outer_h: dimensions of coasters
+        margin: spacing from the edge
+        max_rows, max_cols: optionally force rows/cols
 
     Returns:
-      A list of tuples, each tuple being.
+        List of (cx, cy, angle)
     """
     centers = []
+
+    # Staggered layout setup
+    overlap_ratio = 0.285  # How much overlap at corners — tweak this
+    step_x = outer_w * (1 - overlap_ratio)
+    step_y = outer_h * (1 - overlap_ratio)
+
     cols = math.ceil(math.sqrt(num_coasters))
     rows = math.ceil(num_coasters / cols)
-    cell_w = outer_w * 0.9
-    cell_h = outer_h * 0.9
-    max_offset_x = cell_w * 0.5
-    max_offset_y = cell_h * 0.5
-    start_x = margin
-    start_y = margin
-    allowed_angles = [0, 15, 30, 45]
+
+    allowed_angles = [15, 45, 60, 75]
+    angle = random.choice(allowed_angles) if rotation_flag == "y" else 0
+
+    idx = 0
     for r in range(rows):
         for c in range(cols):
-            if len(centers) >= num_coasters:
+            if idx >= num_coasters:
                 break
-            cell_x = start_x + c * cell_w
-            cell_y = start_y + r * cell_h
-            ideal_cx = cell_x + cell_w / 2
-            ideal_cy = cell_y + cell_h / 2
-            valid = False
-            retries = 0
-            while not valid and retries < max_retries:
-                offset_x = random.uniform(-max_offset_x, max_offset_x)
-                offset_y = random.uniform(-max_offset_y, max_offset_y)
-                cx = ideal_cx + offset_x
-                cy = ideal_cy + offset_y
-                angle = random.choice(allowed_angles)
-                candidate_spec = (cx, cy, angle)
-                if len(centers) == 0:
-                    valid = True
-                else:
-                    # Generate candidate coaster
-                    candidate_ring = create_rectangle_ring(cx, cy, outer_w, outer_h, inner_w, inner_h, angle)
-                    # First check the existing constraints
-                    if check_coaster_constraints(candidate_spec, centers, outer_w, outer_h, inner_w, inner_h):
-                        # Additional check: count the number of overlaps between the candidate coaster and the existing coasters
-                        overlap_count = 0
-                        for spec_exist in centers:
-                            ox, oy, oangle = spec_exist
-                            other_ring = create_rectangle_ring(ox, oy, outer_w, outer_h, inner_w, inner_h, oangle)
-                            if candidate_ring.intersection(other_ring).area > 1.0:  # Adjust threshold as needed
-                                overlap_count += 1
-                            if overlap_count >= 2:
-                                break
-                        if overlap_count < 2:
-                            valid = True
-                retries += 1
-            if valid:
-                centers.append(candidate_spec)
-            else:
-                centers.append((ideal_cx, ideal_cy, random.choice(allowed_angles)))
+
+            # Stagger every other row for corner alignment
+            offset_x = (step_x / 2) if r % 2 else 0
+
+
+            cx = margin + c * step_x + offset_x
+            cy = margin + r * step_y
+
+            centers.append((cx, cy, angle))
+            idx += 1
+
     return centers
 
 
 if __name__ == "__main__":
     num_coasters = int(input("Please enter the number of coasters: "))
+    rotation_flag = str(input("Would you like to rotate the coasters (y/n): "))
     DPI = 192  # pixels per inch
     outer_w = outer_h = 2.5 * DPI  # e.g., 240 pixels
     inner_w = inner_h = 2.0 * DPI  # e.g., 192 pixels
     margin_between = 50
 
     # Calculate coaster centers and angles (that meet the constraints)
-    centers = calculate_coaster_centers(num_coasters, outer_w, outer_h, margin_between)
+    centers = calculate_coaster_centers(num_coasters, rotation_flag, outer_w, outer_h, margin_between)
 
     # Build the specifications list, each tuple is (cx, cy, outer_w, outer_h, inner_w, inner_h, angle)
     specs = []
