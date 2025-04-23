@@ -151,11 +151,11 @@ def calculate_coaster_centers(n_sides, num_coasters, rotation_flag, outer_w, out
     centers = []
 
     # Staggered layout setup
-    overlap_ratio = 0.285  # How much overlap at corners — tweak this
+    overlap_ratio = 0.3  # How much overlap at corners — tweak this
     print(n_sides)
     if n_sides < 5:
-        step_x = 1.5 * outer_w * (1 - overlap_ratio)
-        step_y = 1.5 * outer_h * (1 - overlap_ratio)
+        step_x = 1.35 * outer_w * (1 - overlap_ratio)
+        step_y = 1.35 * outer_h * (1 - overlap_ratio)
     else:
         step_x = 1.65 * outer_w * (1 - overlap_ratio)
         step_y = 1.65 * outer_h * (1 - overlap_ratio)
@@ -163,8 +163,11 @@ def calculate_coaster_centers(n_sides, num_coasters, rotation_flag, outer_w, out
     cols = math.ceil(math.sqrt(num_coasters))
     rows = math.ceil(num_coasters / cols)
 
-    allowed_angles = [15, 45, 60, 75]
-    angle = random.choice(allowed_angles) if rotation_flag == "y" else 0
+    allowed_angles = [15, 30, 45, 60, 75]
+    if rotation_flag == "y":
+        angle = random.choice(allowed_angles)
+    else:
+        angle = 0
 
     idx = 0
     for r in range(rows):
@@ -239,6 +242,7 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
         bx, by, tx, ty = nr.bounds
         h = ty - by
         maxh = max(maxh, h)
+
         dr = translate(nr, x - bx, margin - by)
         dr_red = translate(nr_red, x - bx, margin - by)
         arranged.append(dr)
