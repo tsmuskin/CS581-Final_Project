@@ -2,7 +2,7 @@ import math
 import random
 import svgwrite
 from shapely.geometry import Polygon, Point
-from shapely.affinity import rotate, translate
+from shapely.affinity import rotate, translate, scale
 
 
 def regular_polygon_vertices(n_sides, radius):
@@ -218,49 +218,101 @@ def generate_complex_svg(specs, filename="complex.svg", margin=50):
     print("Saved", filename)
 
 def generate_individual_svg(specs, filename="individual.svg", margin=50):
-    rings = []
-    reds = []
-    for cx, cy, ow, oh, iw, ih, angle, n in specs:
-        rings.append(create_polygon_ring(cx, cy, n, ow / 2, iw / 2, angle))
-    # Calculate overlaps for each
-    for i, ri in enumerate(rings):
-        r = None
-        for j, rj in enumerate(rings):
-            if i == j: continue
-            inter = ri.intersection(rj)
-            if not inter.is_empty:
-                r = inter if r is None else r.union(inter)
-        reds.append(r if r else ri.buffer(0))
-    # Normalize and horizontally arrange
-    arranged = []
-    arranged_red = []
-    x = margin
-    maxh = 0
-    for (cx, cy, ow, oh, iw, ih, angle, n), r, reg in zip(specs, rings, reds):
-        nr = create_polygon_ring(ow / 2, oh / 2, n, ow / 2, iw / 2, angle)
-        nr_red = translate(reg, (ow / 2 - cx), (oh / 2 - cy))
-        bx, by, tx, ty = nr.bounds
-        h = ty - by
-        maxh = max(maxh, h)
+    """
+    Normalize each coaster and arrange them horizontally.
+    Draw overlap regions in blue if the current coaster’s index is greater
+    than the overlapping coaster’s index, otherwise in red.
+    If a coaster has any blue overlap, also draw its left–right mirror image
+    in a second row below the originals.
+    """
 
-        dr = translate(nr, x - bx, margin - by)
-        dr_red = translate(nr_red, x - bx, margin - by)
-        arranged.append(dr)
-        arranged_red.append(dr_red)
-        x += (tx - bx) + margin
-    dwg = svgwrite.Drawing(filename, size=(f"{x + margin}px", f"{maxh + 2 * margin}px"))
-    for r, reg in zip(arranged, arranged_red):
-        dwg.add(dwg.path(d=shapely_to_svg_path(r), fill="none", stroke="black"))
-        if not reg.is_empty:
-            dwg.add(dwg.path(d=shapely_to_svg_path(reg), fill="none", stroke="red", stroke_dasharray="4"))
+    rings = [
+        create_polygon_ring(cx, cy, n_sides, ow/2, iw/2, angle)
+        for cx, cy, ow, oh, iw, ih, angle, n_sides in specs
+    ]
+
+
+    arranged = []
+    overlaps_list = []
+    x_cursor = margin
+    max_h = 0
+
+    for idx, ((cx, cy, ow, oh, iw, ih, angle, n_sides), ring) in enumerate(zip(specs, rings)):
+
+        norm = translate(ring, xoff=ow/2 - cx, yoff=oh/2 - cy)
+        minx, miny, maxx, maxy = norm.bounds
+        w, h = maxx - minx, maxy - miny
+        max_h = max(max_h, h)
+
+
+        dx, dy = x_cursor - minx, margin - miny
+        placed = translate(norm, xoff=dx, yoff=dy)
+        arranged.append(placed)
+
+
+        overlaps = []
+        for jdx, other in enumerate(rings):
+            if jdx == idx: continue
+            other_norm = translate(other, xoff=ow/2 - cx, yoff=oh/2 - cy)
+            region = norm.intersection(other_norm)
+            if region.is_empty: continue
+            region = translate(region, xoff=dx, yoff=dy)
+            color = "blue" if idx > jdx else "red"
+            overlaps.append((region, color))
+
+        overlaps_list.append(overlaps)
+        x_cursor += w + margin
+
+
+    canvas_w = x_cursor + margin
+    canvas_h = margin + max_h + margin + max_h + margin
+    dwg = svgwrite.Drawing(filename, size=(f"{canvas_w}px", f"{canvas_h}px"))
+
+    row2_offset = max_h + 2 * margin
+
+    for idx, (ring_shape, overlaps) in enumerate(zip(arranged, overlaps_list)):
+
+        dwg.add(dwg.path(d=shapely_to_svg_path(ring_shape),
+                         fill="none", stroke="black"))
+
+        for region, color in overlaps:
+            if color == "red":
+                dwg.add(dwg.path(
+                   d=shapely_to_svg_path(region),
+                   fill="none", stroke=color,
+                   stroke_dasharray="4", stroke_width=1
+                ))
+
+
+        if any(color == "blue" for _, color in overlaps):
+
+            minx, _, maxx, _ = ring_shape.bounds
+            axis_x = (minx + maxx) / 2
+
+            mirrored = scale(ring_shape, xfact=-1, yfact=1, origin=(axis_x, 0))
+            mirrored = translate(mirrored, xoff=0, yoff=row2_offset)
+            dwg.add(dwg.path(d=shapely_to_svg_path(mirrored),
+                             fill="none", stroke="black"))
+
+            for region, color in overlaps:
+                if color == "blue":
+                   mir_reg = scale(region, xfact=-1, yfact=1, origin=(axis_x, 0))
+                   mir_reg = translate(mir_reg, xoff=0, yoff=row2_offset)
+                   dwg.add(dwg.path(
+                    d=shapely_to_svg_path(mir_reg),
+                    fill="none", stroke=color ,
+                    stroke_dasharray="4", stroke_width=1
+                    ))
+
     dwg.save()
-    print("Saved", filename)
+    print("Saved:", filename)
+
 
 if __name__ == "__main__":
     num = int(input("Enter number of coasters: "))
     n_sides = int(input("Enter the number of sides for each coaster (>=3): "))
     rotation_flag = str(input("Would you like to rotate the coasters (y/n): "))
-    DPI = 192
+    DPI = 96
     outer_w = outer_h = 2.5 * DPI  # Outer diameter
     inner_w = inner_h = 2.0 * DPI  # Inner diameter
     margin = 50
