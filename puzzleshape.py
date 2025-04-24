@@ -151,14 +151,17 @@ def calculate_coaster_centers(n_sides, num_coasters, rotation_flag, outer_w, out
     centers = []
 
     # Staggered layout setup
-    overlap_ratio = 0.3  # How much overlap at corners — tweak this
+    overlap_ratio = .37  # How much overlap at corners
     print(n_sides)
     if n_sides < 5:
-        step_x = 1.35 * outer_w * (1 - overlap_ratio)
-        step_y = 1.35 * outer_h * (1 - overlap_ratio)
+        step_x = 1.7 * outer_w * (1 - overlap_ratio)
+        step_y = 1.7 * outer_h * (1 - overlap_ratio)
+    if n_sides == 4:
+            step_x = 1.5 * outer_w * (1 - overlap_ratio)
+            step_y = 1.5 * outer_h * (1 - overlap_ratio)
     else:
-        step_x = 1.65 * outer_w * (1 - overlap_ratio)
-        step_y = 1.65 * outer_h * (1 - overlap_ratio)
+        step_x = 1.8 * outer_w * (1 - overlap_ratio)
+        step_y = 1.8 * outer_h * (1 - overlap_ratio)
 
     cols = math.ceil(math.sqrt(num_coasters))
     rows = math.ceil(num_coasters / cols)
@@ -279,29 +282,29 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
             if color == "red":
                 dwg.add(dwg.path(
                    d=shapely_to_svg_path(region),
-                   fill="none", stroke=color,
+                   fill=color, stroke=color,
                    stroke_dasharray="4", stroke_width=1
                 ))
 
 
         if any(color == "blue" for _, color in overlaps):
 
-            minx, _, maxx, _ = ring_shape.bounds
-            axis_x = (minx + maxx) / 2
+            minx, miny, maxx, maxy = ring_shape.bounds
+            axis_y = (miny + maxy) / 2  # Mirror across horizontal axis
 
-            mirrored = scale(ring_shape, xfact=-1, yfact=1, origin=(axis_x, 0))
+            mirrored = scale(ring_shape, xfact=1, yfact=-1, origin=(0, axis_y))
             mirrored = translate(mirrored, xoff=0, yoff=row2_offset)
             dwg.add(dwg.path(d=shapely_to_svg_path(mirrored),
                              fill="none", stroke="black"))
 
             for region, color in overlaps:
                 if color == "blue":
-                   mir_reg = scale(region, xfact=-1, yfact=1, origin=(axis_x, 0))
-                   mir_reg = translate(mir_reg, xoff=0, yoff=row2_offset)
-                   dwg.add(dwg.path(
-                    d=shapely_to_svg_path(mir_reg),
-                    fill="none", stroke=color ,
-                    stroke_dasharray="4", stroke_width=1
+                    mir_reg = scale(region, xfact=1, yfact=-1, origin=(0, axis_y))
+                    mir_reg = translate(mir_reg, xoff=0, yoff=row2_offset)
+                    dwg.add(dwg.path(
+                        d=shapely_to_svg_path(mir_reg),
+                        fill=color, stroke=color,
+                        stroke_dasharray="4", stroke_width=1
                     ))
 
     dwg.save()
@@ -313,8 +316,8 @@ if __name__ == "__main__":
     n_sides = int(input("Enter the number of sides for each coaster (>=3): "))
     rotation_flag = str(input("Would you like to rotate the coasters (y/n): "))
     DPI = 96
-    outer_w = outer_h = 2.5 * DPI  # Outer diameter
-    inner_w = inner_h = 2.0 * DPI  # Inner diameter
+    outer_w = outer_h = 3.0 * DPI  # Outer diameter
+    inner_w = inner_h = 2.25 * DPI  # Inner diameter
     margin = 50
 
     centers = calculate_coaster_centers(n_sides, num, rotation_flag,
