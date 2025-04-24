@@ -60,7 +60,7 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
             if color == "red":
                 dwg.add(dwg.path(
                    d=shapely_to_svg_path(region),
-                   fill="none", stroke=color,
+                   fill=color, stroke=color,
                    stroke_dasharray="4", stroke_width=1
                 ))
 
@@ -81,7 +81,7 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
                    mir_reg = translate(mir_reg, xoff=0, yoff=row2_offset)
                    dwg.add(dwg.path(
                     d=shapely_to_svg_path(mir_reg),
-                    fill="none", stroke=color ,
+                    fill=color, stroke=color ,
                     stroke_dasharray="4", stroke_width=1
                     ))
 
