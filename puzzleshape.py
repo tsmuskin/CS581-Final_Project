@@ -1,9 +1,8 @@
 import math
 import random
 import svgwrite
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, LineString
 from shapely.affinity import rotate, translate, scale
-
 
 def regular_polygon_vertices(n_sides, radius):
     """
@@ -38,6 +37,7 @@ def create_polygon_ring(cx, cy, n_sides, outer_r, inner_r, angle):
 
     outer = Polygon(outer_pts)
     inner = Polygon(inner_pts)
+
     ring = outer.difference(inner)
 
     # Align 0° edge to be horizontal by applying an initial offset
@@ -67,6 +67,38 @@ def create_inner_polygon(cx, cy, n_sides, outer_r, inner_r, angle):
                   use_radians=False)
     poly = translate(poly, xoff=cx, yoff=cy)
     return poly
+
+def create_cross(cx, cy, angle, size, inner_polygon):
+    """
+    Create a cross shape centered at (cx, cy) that fits within the inner polygon.
+    `size` is the length of each arm (total length of cross is size*2).
+    """
+    bar_width = size * 0.05
+    half = size * 0.5
+
+    horiz = Polygon([
+        (cx - half, cy - bar_width / 2),
+        (cx + half, cy - bar_width / 2),
+        (cx + half, cy + bar_width / 2),
+        (cx - half, cy + bar_width / 2)
+    ])
+
+    vert = Polygon([
+        (cx - bar_width / 2, cy - half),
+        (cx + bar_width / 2, cy - half),
+        (cx + bar_width / 2, cy + half),
+        (cx - bar_width / 2, cy + half)
+    ])
+
+    cross = horiz.union(vert)
+
+    if angle != 0:
+        cross = rotate(cross, angle, origin=(cx, cy), use_radians=False)
+
+    # Ensure the cross fits within the inner polygon
+    cross = cross.intersection(inner_polygon)
+    return cross
+
 
 def polygon_to_path(poly):
     ext = list(poly.exterior.coords)
@@ -153,12 +185,18 @@ def calculate_coaster_centers(n_sides, num_coasters, rotation_flag, outer_w, out
     # Staggered layout setup
     overlap_ratio = .37  # How much overlap at corners
     print(n_sides)
-    if n_sides < 5:
-        step_x = 1.7 * outer_w * (1 - overlap_ratio)
-        step_y = 1.7 * outer_h * (1 - overlap_ratio)
+    if n_sides < 4:
+        overlap_ratio = .83
+        step_x = 1.6 * outer_w * (1 - overlap_ratio)
+        step_y = 1.6 * outer_h * (1 - overlap_ratio)
+
+#         overlap_ratio = .9
+#         step_x = 1.6 * outer_w * (1 - overlap_ratio)
+#         step_y = 1.6 * outer_h * (1 - overlap_ratio)
     if n_sides == 4:
-            step_x = 1.5 * outer_w * (1 - overlap_ratio)
-            step_y = 1.5 * outer_h * (1 - overlap_ratio)
+            overlap_ratio = .36
+            step_x = 1.7 * outer_w * (1 - overlap_ratio)
+            step_y = 1.7 * outer_h * (1 - overlap_ratio)
     else:
         step_x = 1.8 * outer_w * (1 - overlap_ratio)
         step_y = 1.8 * outer_h * (1 - overlap_ratio)
@@ -193,8 +231,16 @@ def calculate_coaster_centers(n_sides, num_coasters, rotation_flag, outer_w, out
 def generate_complex_svg(specs, filename="complex.svg", margin=50):
     rings = []
     for cx, cy, ow, oh, iw, ih, angle, n in specs:
-        r = create_polygon_ring(cx, cy, n, ow / 2, iw / 2, angle)
-        rings.append(r)
+        outer_r = ow / 2
+        inner_r = iw / 2
+        ring = create_polygon_ring(cx, cy, n, outer_r, inner_r, angle)
+        inner_poly = create_inner_polygon(cx, cy, n, outer_r, inner_r, angle)
+
+        if n == 4:
+            cross = create_cross(cx, cy, angle, size=iw, inner_polygon=inner_poly)
+            ring = ring.union(cross)
+
+        rings.append(ring)
     red = []
     for i, ri in enumerate(rings):
         u = None
@@ -229,10 +275,23 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
     in a second row below the originals.
     """
 
-    rings = [
-        create_polygon_ring(cx, cy, n_sides, ow/2, iw/2, angle)
-        for cx, cy, ow, oh, iw, ih, angle, n_sides in specs
-    ]
+#     rings = [
+#         create_polygon_ring(cx, cy, n_sides, ow/2, iw/2, angle)
+#         for cx, cy, ow, oh, iw, ih, angle, n_sides in specs
+#     ]
+
+    updated_rings = []
+    for cx, cy, ow, oh, iw, ih, angle, n_sides in specs:
+        outer_r = ow / 2
+        inner_r = iw / 2
+        ring = create_polygon_ring(cx, cy, n_sides, outer_r, inner_r, angle)
+        inner_poly = create_inner_polygon(cx, cy, n_sides, outer_r, inner_r, angle)
+
+        if n_sides == 4:
+            cross = create_cross(cx, cy, angle, size=iw, inner_polygon=inner_poly)
+            ring = ring.union(cross)
+
+        updated_rings.append(ring)
 
 
     arranged = []
@@ -240,7 +299,20 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
     x_cursor = margin
     max_h = 0
 
-    for idx, ((cx, cy, ow, oh, iw, ih, angle, n_sides), ring) in enumerate(zip(specs, rings)):
+    for idx, ((cx, cy, ow, oh, iw, ih, angle, n_sides), ring) in enumerate(zip(specs, updated_rings)):
+#         updated_rings = []
+#         for cx, cy, ow, oh, iw, ih, angle, n_sides in specs:
+#             outer_r = ow / 2
+#             inner_r = iw / 2
+#             ring = create_polygon_ring(cx, cy, n_sides, outer_r, inner_r, angle)
+#             inner_poly = create_inner_polygon(cx, cy, n_sides, outer_r, inner_r, angle)
+#
+#             if n_sides == 4:
+#                 cross = create_cross(cx, cy, angle, size=iw, inner_polygon=inner_poly)
+#                 ring = ring.union(cross)
+#
+#             updated_rings.append(ring)
+
 
         norm = translate(ring, xoff=ow/2 - cx, yoff=oh/2 - cy)
         minx, miny, maxx, maxy = norm.bounds
@@ -254,7 +326,7 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
 
 
         overlaps = []
-        for jdx, other in enumerate(rings):
+        for jdx, other in enumerate(updated_rings):
             if jdx == idx: continue
             other_norm = translate(other, xoff=ow/2 - cx, yoff=oh/2 - cy)
             region = norm.intersection(other_norm)
@@ -310,14 +382,123 @@ def generate_individual_svg(specs, filename="individual.svg", margin=50):
     dwg.save()
     print("Saved:", filename)
 
+# def generate_individual_svg(specs, filename="individual.svg", margin=50):
+#     """
+#     Normalize each coaster and arrange them horizontally.
+#     Draw overlap regions in red if the current coaster’s index is greater
+#     than the overlapping coaster’s index, otherwise in blue.
+#     Blue overlap marks will only appear on the bottom row (mirrored coasters).
+#     """
+#     rings = [
+#         create_polygon_ring(cx, cy, n_sides, ow / 2, iw / 2, angle)
+#         for cx, cy, ow, oh, iw, ih, angle, n_sides in specs
+#     ]
+#
+#     arranged = []
+#     overlaps_list = []
+#     max_h = 0
+#     x_cursor = margin
+#
+#     # Calculate the total width of all coasters for proper alignment
+#     total_width = sum(ow for _, _, ow, _, _, _, _, _ in specs) + (len(specs) + 1) * margin
+#
+#     # Calculate the left offset to center the coasters
+#     x_cursor = margin
+#
+#     for idx, ((cx, cy, ow, oh, iw, ih, angle, n_sides), ring) in enumerate(zip(specs, rings)):
+#         outer_r = ow / 2
+#         inner_r = iw / 2
+#         ring = create_polygon_ring(cx, cy, n_sides, outer_r, inner_r, angle)
+#         inner_poly = create_inner_polygon(cx, cy, n_sides, outer_r, inner_r, angle)
+#
+#         if n_sides == 4:
+#             cross = create_cross(cx, cy, angle, size=iw, inner_polygon=inner_poly)
+#             ring = ring.union(cross)
+#
+#         norm = translate(ring, xoff=ow / 2 - cx, yoff=oh / 2 - cy)
+#         minx, miny, maxx, maxy = norm.bounds
+#         w, h = maxx - minx, maxy - miny
+#         max_h = max(max_h, h)
+#
+#         # Align coasters starting from the left
+#         dx, dy = x_cursor - minx, margin - miny
+#         placed = translate(norm, xoff=dx, yoff=dy)
+#         arranged.append(placed)
+#
+#         overlaps = []
+#         for jdx, other in enumerate(rings):
+#             if jdx == idx: continue
+#             other_norm = translate(other, xoff=ow / 2 - cx, yoff=oh / 2 - cy)
+#             region = norm.intersection(other_norm)
+#             if region.is_empty: continue
+#             region = translate(region, xoff=dx, yoff=dy)
+#
+#             # Ensure the overlap region is calculated across the whole coaster (cross + ring)
+#             full_coaster = ring
+#             if n_sides == 4:
+#                 full_coaster = full_coaster.union(cross)
+#
+#             full_norm = translate(full_coaster, xoff=dx, yoff=dy)
+#             full_overlap = full_norm.intersection(other_norm)
+#             if not full_overlap.is_empty:
+#                 region = full_overlap
+#
+#             # Calculate overlap color: red if idx > jdx, blue if idx < jdx
+#             color = "red" if idx > jdx else "blue"
+#             overlaps.append((region, color))
+#
+#         overlaps_list.append(overlaps)
+#         x_cursor += w + margin
+#
+#     canvas_w = total_width  # The total width based on all coasters and margin
+#     canvas_h = margin + max_h + margin + max_h + margin
+#     dwg = svgwrite.Drawing(filename, size=(f"{canvas_w}px", f"{canvas_h}px"))
+#
+#     row2_offset = max_h + 2 * margin
+#
+#     for idx, (ring_shape, overlaps) in enumerate(zip(arranged, overlaps_list)):
+#         dwg.add(dwg.path(d=shapely_to_svg_path(ring_shape), fill="none", stroke="black"))
+#
+#         # Add overlap regions (red on top row, blue on bottom row)
+#         for region, color in overlaps:
+#             if color == "red":  # Red for top row
+#                 dwg.add(dwg.path(
+#                     d=shapely_to_svg_path(region),
+#                     fill=color, stroke=color,
+#                     stroke_dasharray="4", stroke_width=1
+#                 ))
+#
+#         # If any overlap is blue (for bottom row), mirror it and place it
+#         if any(color == "blue" for _, color in overlaps):
+#             minx, miny, maxx, maxy = ring_shape.bounds
+#             axis_y = (miny + maxy) / 2  # Mirror across horizontal axis
+#
+#             mirrored = scale(ring_shape, xfact=1, yfact=-1, origin=(0, axis_y))
+#             mirrored = translate(mirrored, xoff=0, yoff=row2_offset)
+#             dwg.add(dwg.path(d=shapely_to_svg_path(mirrored), fill="none", stroke="black"))
+#
+#             for region, color in overlaps:
+#                 if color == "blue":
+#                     # Blue regions only appear on the mirrored (bottom) row
+#                     mir_reg = scale(region, xfact=1, yfact=-1, origin=(0, axis_y))
+#                     mir_reg = translate(mir_reg, xoff=0, yoff=row2_offset)
+#                     dwg.add(dwg.path(
+#                         d=shapely_to_svg_path(mir_reg),
+#                         fill=color, stroke=color,
+#                         stroke_dasharray="4", stroke_width=1
+#                     ))
+#
+#     dwg.save()
+#     print("Saved:", filename)
+
 
 if __name__ == "__main__":
     num = int(input("Enter number of coasters: "))
     n_sides = int(input("Enter the number of sides for each coaster (>=3): "))
     rotation_flag = str(input("Would you like to rotate the coasters (y/n): "))
-    DPI = 96
-    outer_w = outer_h = 3.0 * DPI  # Outer diameter
-    inner_w = inner_h = 2.25 * DPI  # Inner diameter
+    DPI = 126
+    outer_w = outer_h = 4.5 * DPI  # Outer diameter
+    inner_w = inner_h = 3.85 * DPI  # Inner diameter
     margin = 50
 
     centers = calculate_coaster_centers(n_sides, num, rotation_flag,
